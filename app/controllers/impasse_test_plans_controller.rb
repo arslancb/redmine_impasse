@@ -15,13 +15,13 @@ class ImpasseTestPlansController < ImpasseAbstractController
   end
 
   def show
-    @test_plan = Impasse::TestPlan.find(:first, :conditions => { :id => params[:id]}, :include => :version)
-    @setting = Impasse::Setting.find_by_project_id(@project) || Impasse::Setting.create(:project_id => @project.id)
+    @test_plan = Impasse::TestPlan.where(:id => params[:id]).includes(:version).first
+    @setting = Impasse::Setting.find_by(:project_id => @project) || Impasse::Setting.create(:project_id => @project.id)
   end
 
   def new
     @test_plan = Impasse::TestPlan.new(params[:test_plan])
-    if request.post? and @test_plan.save
+    if (request.post? or request.patch?) and @test_plan.save
       flash[:notice] = l(:notice_successful_create)
       redirect_to :action => :tc_assign, :project_id => @project, :id => @test_plan
     end
@@ -30,8 +30,8 @@ class ImpasseTestPlansController < ImpasseAbstractController
 
   def edit
     @test_plan = Impasse::TestPlan.find(params[:id])
-    @test_plan.attributes = params[:test_plan]
-    if (request.post? or request.put?) and @test_plan.save
+    @test_plan.update_attributes(params[:test_plan])
+    if (request.post? or request.put? or request.patch?) and @test_plan.save
       flash[:notice] = l(:notice_successful_update)
       redirect_to :action => :show, :project_id => @project, :id => @test_plan
     end
@@ -40,7 +40,7 @@ class ImpasseTestPlansController < ImpasseAbstractController
 
   def destroy
     @test_plan = Impasse::TestPlan.find(params[:id])
-    if request.post? and @test_plan.destroy
+    if (request.post? or request.patch?) and @test_plan.destroy
       flash[:notice] = l(:notice_successful_delete)
       redirect_to :action => :index, :project_id => @project
     end
@@ -48,8 +48,8 @@ class ImpasseTestPlansController < ImpasseAbstractController
 
   def copy
     @test_plan = Impasse::TestPlan.find(params[:id])
-    @test_plan.attributes = params[:test_plan]
-    if request.post? or request.put?
+    @test_plan.update_attributes(params[:test_plan])
+    if request.post? or request.put? or request.patch?
       ActiveRecord::Base.transaction do
         new_test_plan = @test_plan.dup
         new_test_plan.save!
@@ -100,7 +100,7 @@ class ImpasseTestPlansController < ImpasseAbstractController
   def add_test_case
     if params.include? :test_case_ids
       new_cases = 0
-      nodes = Impasse::Node.find(:all, :conditions => ["id in (?)", params[:test_case_ids]])
+      nodes = Impasse::Node.where("id in (?)", params[:test_case_ids])
       ActiveRecord::Base.transaction do
         for node in nodes
           test_case_ids = []
@@ -112,8 +112,7 @@ class ImpasseTestPlansController < ImpasseAbstractController
 
           for test_case_id in test_case_ids
             test_plan_case =
-              Impasse::TestPlanCase.find_or_create_by_test_case_id_and_test_plan_id(
-                                                                                    :test_case_id => test_case_id,
+              Impasse::TestPlanCase.find_or_create_by(:test_case_id => test_case_id,
                                                                                     :test_plan_id => params[:test_plan_id],
                                                                                     :node_order => 0)
             new_cases += 1
@@ -131,7 +130,7 @@ class ImpasseTestPlansController < ImpasseAbstractController
   end
 
   def autocomplete
-    @users = @project.users.like(params[:q]).all(:limit => 100)
+    @users = @project.users.like(params[:q]).limit(100)
     render :layout => false
   end
 end
